@@ -13,7 +13,8 @@
       <pubDate>Sun, 09 May 2021 00:00:00 +0000</pubDate>
       
       <guid>/post/2021/05/09/hello-world/</guid>
-      <description>Link to project 1
+      <description>Check out what I’ve been working on!
+Link to project 1
 Link to google</description>
     </item>
     
@@ -24,17 +25,6 @@ Link to google</description>
       
       <guid>/project/project2/</guid>
       <description>0.Introduction Acute leukemias are aggressive cancers that are characterized by infiltration of the bone marrow, blood, and other tissues by proliferative, clonal, and abnormally differentiated hematopoietic cells. Acute myeloid leukemia (AML) involves the rapid proliferation of poorly differentiated cells of the myeloid lineage, while acute lymphoblastic leukemia (ALL) involves cells of the lymphoid lineage with B (B-ALL) and T (T-ALL) cell subtypes. While frontline chemotherapies are effective in inducing remission across a spectrum of AML/ALL prognoses, the enormous genetic, epigenetic, and cellular heterogeneity of the diseases lead to frequent recurrence and mortality.</description>
-    </item>
-    
-    <item>
-      <title>Hello R Markdown</title>
-      <link>/post/2015/07/23/hello-r-markdown/</link>
-      <pubDate>Thu, 23 Jul 2015 21:13:14 -0500</pubDate>
-      
-      <guid>/post/2015/07/23/hello-r-markdown/</guid>
-      <description>R Markdown This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see http://rmarkdown.rstudio.com.
-You can embed an R code chunk like this:
-summary(cars) ## speed dist ## Min. : 4.0 Min. : 2.00 ## 1st Qu.:12.0 1st Qu.: 26.00 ## Median :15.0 Median : 36.00 ## Mean :15.4 Mean : 42.98 ## 3rd Qu.</description>
     </item>
     
     <item>
