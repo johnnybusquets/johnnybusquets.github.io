@@ -5,7 +5,7 @@ date: '2021-05-09'
 slug: hello-world
 categories: []
 tags: []
-description: 'Check out what I have been working on:'
+description: ' '
 ---
 Check out what I've been working on!
 
