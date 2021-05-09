@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Jonathan Busquets" />
+    
+    <link rel="shortcut icon" type="image/x-icon" href="../../img/favicon.ico">
+    <title>Project 1: Exploratory Data Analysis</title>
+    <meta name="generator" content="Hugo 0.83.1" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="../../css/main.css" />
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,400,200bold,400old" />
+    
+    <!--[if lt IE 9]>
+			<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+			<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+		<![endif]-->
+
+    
+  </head>
+
+  <body>
+    <div id="wrap">
+      
+      <nav class="navbar navbar-default">
+  <div class="container">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="../../"><i class="fa fa-home"></i></a>
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <div class="navbar-collapse collapse" id="navbar">
+      <ul class="nav navbar-nav navbar-right">
+      
+        
+        <li><a href="../../post/">BLOG</a></li>
+        
+        <li><a href="../../projects/">PROJECTS</a></li>
+        
+        <li><a href="../../resume/">RESUME</a></li>
+        
+      
+      </ul>
+    </div>
+  </div>
+</nav>
+
+      <div class="container">
+        <div class="blog-post">
+          <h3>
+            <strong><a href="../../project/project1/">Project 1: Exploratory Data Analysis</a></strong>
+          </h3>
+        </div>
+ 
+<div class="blog-title">
+          <h4>
+         January 1, 0001 
+            &nbsp;&nbsp;
+            
+          </h4>
+        </div>
+
+        <div class="panel panel-default">
+          <div class="panel-body">
+            <div class="blogpost">
+              
+
+
+<div id="introduction" class="section level1">
+<h1>0.Introduction</h1>
+<p>I have chosen two datasets, one which contains scrobble (music listening) data from last.fm, and another that contains activity data from the Apple health app. The scrobble data includes artist, album, and song information for music listened to on a given date, which I downloaded for free from this website (<a href="https://benjaminbenben.com/lastfm-to-csv/" class="uri">https://benjaminbenben.com/lastfm-to-csv/</a>). The health data contains distance traveled (in miles), steps taken, and flights of stairs climbed per day. I chose these two datasets because I thought it’d be interesting to look at trends between activity and my listening habits. One question that I felt confident in answering was whether I listen to higher energy music when I’m more active, and wanted to see if the data really supported my assumptions.</p>
+<pre class="r"><code># Load the appropriate packages
+library(readxl)
+library(zoo)
+library(urltools)
+library(anytime)
+library(jsonlite)
+library(dplyr)
+library(tidyverse)
+library(cluster)</code></pre>
+<pre class="r"><code>api_key &lt;- &quot;934ebc5eb7fad868c21ea8c8046bc983&quot;  # Will need this later!
+
+# Import lastfm scrobble data, apple health data
+raw_scrobbles &lt;- read_excel(&quot;~/Johnny/Jbiscuits_scrobbles.xlsx&quot;) %&gt;% 
+    mutate(date = as.Date(anytime(date))) %&gt;% arrange(desc(date))
+head(raw_scrobbles)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   artist        album song              date      
+##   &lt;chr&gt;         &lt;chr&gt; &lt;chr&gt;             &lt;date&gt;    
+## 1 Armand Hammer Haram God&#39;s Feet        2021-03-26
+## 2 Armand Hammer Haram Aubergine         2021-03-26
+## 3 Armand Hammer Haram Indian Summer     2021-03-26
+## 4 Armand Hammer Haram Black Sunlight    2021-03-26
+## 5 Armand Hammer Haram Roaches Don&#39;t Fly 2021-03-26
+## 6 Armand Hammer Haram Sir Benni Miles   2021-03-26</code></pre>
+<pre class="r"><code>tidy_health &lt;- read_excel(&quot;~/Johnny/Health Data.xlsx&quot;) %&gt;% mutate(date = as.Date(anytime(date)))
+head(tidy_health)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   date       distance flights_climbed steps
+##   &lt;date&gt;        &lt;dbl&gt;           &lt;dbl&gt; &lt;dbl&gt;
+## 1 2021-03-26    0.670               2  1340
+## 2 2021-03-25    4.51                7  7748
+## 3 2021-03-24    3.16                7  7434
+## 4 2021-03-23    5.76                9 10240
+## 5 2021-03-22    5.27                5  9121
+## 6 2021-03-21    4.81                4  7782</code></pre>
+</div>
+<div id="tidying" class="section level1">
+<h1>1.Tidying</h1>
+<p>While both data sets are technically tidy (one row per observation, one column per variable), <code>raw_scrobbles</code> is quite long and unwieldy. This is because each observation corresponds to a unique date-artist-album-song, which, as someone who listens to music mostly in album format, leads to a lot of date-artist-album repetition. An easy way to fix this is by using pivot_longer() to split the information from <code>song</code> into two columns and then collapse them into a list according to date-artist-album using pivot_wider().</p>
+<pre class="r"><code>long_scrobbles &lt;- raw_scrobbles %&gt;% pivot_longer(3, names_to = &quot;category&quot;, 
+    values_to = &quot;title&quot;)
+head(long_scrobbles)</code></pre>
+<pre><code>## # A tibble: 6 x 5
+##   artist        album date       category title            
+##   &lt;chr&gt;         &lt;chr&gt; &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;            
+## 1 Armand Hammer Haram 2021-03-26 song     God&#39;s Feet       
+## 2 Armand Hammer Haram 2021-03-26 song     Aubergine        
+## 3 Armand Hammer Haram 2021-03-26 song     Indian Summer    
+## 4 Armand Hammer Haram 2021-03-26 song     Black Sunlight   
+## 5 Armand Hammer Haram 2021-03-26 song     Roaches Don&#39;t Fly
+## 6 Armand Hammer Haram 2021-03-26 song     Sir Benni Miles</code></pre>
+<pre class="r"><code>tidy_scrobbles &lt;- long_scrobbles %&gt;% pivot_wider(names_from = &quot;category&quot;, 
+    values_from = &quot;title&quot;)
+str(tidy_scrobbles)  # View of the new data structure with songs in nested lists</code></pre>
+<pre><code>## tibble [25,864 × 4] (S3: tbl_df/tbl/data.frame)
+##  $ artist: chr [1:25864] &quot;Armand Hammer&quot; &quot;Freddie Gibbs&quot; &quot;YG&quot; &quot;BROCKHAMPTON&quot; ...
+##  $ album : chr [1:25864] &quot;Haram&quot; &quot;Alfredo&quot; &quot;Still Brazy (Deluxe)&quot; &quot;SATURATION&quot; ...
+##  $ date  : Date[1:25864], format: &quot;2021-03-26&quot; &quot;2021-03-26&quot; ...
+##  $ song  :List of 25864
+##   ..$ : chr [1:6] &quot;God&#39;s Feet&quot; &quot;Aubergine&quot; &quot;Indian Summer&quot; &quot;Black Sunlight&quot; ...
+##   ..$ : chr &quot;1985&quot;
+##   ..$ : chr &quot;Blacks &amp; Browns&quot;
+##   ..$ : chr [1:6] &quot;FAKE&quot; &quot;2PAC&quot; &quot;BOYS&quot; &quot;STAR&quot; ...
+##   ..$ : chr [1:2] &quot;Same Size Shoe&quot; &quot;Hyacinth&quot;
+##   ..$ : chr &quot;Rich Don&#39;t Stop&quot;
+##   ..$ : chr &quot;John L&quot;
+##   ..$ : chr &quot;Holdin Me Down&quot;
+##   ..$ : chr &quot;BUZZCUT (FEAT. DANNY BROWN)&quot;
+##   ..$ : chr [1:2] &quot;Exposure&quot; &quot;Cooking With Grease&quot;
+##   ..$ : chr [1:7] &quot;Monochrome&quot; &quot;Sudden Thing&quot; &quot;Open My Eyes&quot; &quot;Peace Lily&quot; ...
+##   ..$ : chr &quot;c2.0&quot;
+##   ..$ : chr &quot;Another Day&quot;
+##   ..$ : chr &quot;NYC Observation&quot;
+##   ..$ : chr &quot;Whateva Will Be&quot;
+##   ..$ : chr &quot;All da Smoke&quot;
+##   ..$ : chr &quot;10 Freaky Girls (with 21 Savage)&quot;
+##   ..$ : chr &quot;I&#39;m Holding Out For Something&quot;
+##   ..$ : chr &quot;The Body Is A Clear Place&quot;
+##   ..$ : chr [1:12] &quot;Gold Thread&quot; &quot;First And Fourth&quot; &quot;Marnie&quot; &quot;An Arabesque&quot; ...
+##   ..$ : chr [1:18] &quot;Allstar&quot; &quot;Da Screets&quot; &quot;Iz u Stupid&quot; &quot;weight of the word*&quot; ...
+##   ..$ : chr [1:13] &quot;Roots Of Blue&quot; &quot;Roots Of Blue&quot; &quot;Troubled Water&quot; &quot;Miles Away&quot; ...
+##   ..$ : chr [1:9] &quot;Forever Find Flight&quot; &quot;1&quot; &quot;GREEDY&quot; &quot;GREED&quot; ...
+##   ..$ : chr &quot;Sunrise in Beijing&quot;
+##   ..$ : chr &quot;Guinnevere&quot;
+##   ..$ : chr &quot;Building a Ladder&quot;
+##   ..$ : chr [1:19] &quot;Green, Green Grass of Home - Live at Folsom State Prison, Folsom, CA - January 1968&quot; &quot;Greystone Chapel - Live at Folsom State Prison, Folsom, CA - January 1968&quot; &quot;I Got Stripes - Live at Folsom State Prison, Folsom, CA (2nd Show) - January 1968&quot; &quot;Green, Green Grass of Home - Live at Folsom State Prison, Folsom, CA - January 1968&quot; ...
+##   ..$ : chr &quot;White America&quot;
+##   ..$ : chr [1:2] &quot;Tonya - Skit&quot; &quot;Dr. West - Skit&quot;
+##   ..$ : chr &quot;No Love&quot;
+##   ..$ : chr &quot;Shot out of A Cannon&quot;
+##   ..$ : chr &quot;Sun King - 2019 Mix&quot;
+##   ..$ : chr [1:19] &quot;Building a Ladder&quot; &quot;Molasses&quot; &quot;Only Time All the Time: Making Friends with Studio Owl&quot; &quot;The Lung&quot; ...
+##   ..$ : chr &quot;Big (feat. Gunna)&quot;
+##   ..$ : chr [1:2] &quot;Hurt&quot; &quot;Collapsed In Sunbeams&quot;
+##   ..$ : chr [1:2] &quot;TE MUDASTE&quot; &quot;EL MUNDO ES MÃ\u008dO&quot;
+##   ..$ : chr [1:4] &quot;MelodÃ­a Del RÃ­o&quot; &quot;Tres Lindas Cubanas&quot; &quot;Cumbanchero&quot; &quot;La EngaÃ±adora&quot;
+##   ..$ : chr [1:10] &quot;Freudian&quot; &quot;Transform (feat. Charlotte Day Wilson)&quot; &quot;Take Me Away (feat. Syd)&quot; &quot;Blessed&quot; ...
+##   ..$ : chr [1:2] &quot;All da Smoke&quot; &quot;All da Smoke&quot;
+##   ..$ : chr &quot;Twist My Fingaz&quot;
+##   ..$ : chr &quot;DI MI NOMBRE - Cap.8: Ã‰xtasis&quot;
+##   ..$ : chr &quot;Corporation&quot;
+##   ..$ : chr &quot;the ends&quot;
+##   ..$ : chr &quot;Flaws and Sins&quot;
+##   ..$ : chr &quot;ringtone (Remix) [feat. Charli XCX, Rico Nasty, Kero Kero Bonito]&quot;
+##   ..$ : chr [1:2] &quot;Mr. To You&quot; &quot;Man to Man&quot;
+##   ..$ : chr &quot;Over and Over and Over&quot;
+##   ..$ : chr &quot;Sup Mate (feat. Future)&quot;
+##   ..$ : chr [1:2] &quot;On The Run (feat. Offset)&quot; &quot;Climax (feat. 6lack)&quot;
+##   ..$ : chr &quot;Jewel&quot;
+##   ..$ : chr [1:12] &quot;F.U.B.U. (feat. The-Dream &amp; BJ the Chicago Kid)&quot; &quot;Interlude: For Us by Us&quot; &quot;Where Do We Go&quot; &quot;Interlude: This Moment&quot; ...
+##   ..$ : chr [1:2] &quot;Beach Life-in-Death&quot; &quot;My Boy - Twin Fantasy&quot;
+##   ..$ : chr &quot;Go2DaMoon (feat. Kanye West)&quot;
+##   ..$ : chr [1:9] &quot;Djinn&quot; &quot;Perplexity&quot; &quot;Meditation&quot; &quot;Delusion&quot; ...
+##   ..$ : chr [1:4] &quot;Spindrifting&quot; &quot;Al Emadi - Blacksea NÃ£o Maya Remix&quot; &quot;Jamil Jamal - DJ Khalab Remix&quot; &quot;The Lost Pearl - Hector Plimmer Remix&quot;
+##   ..$ : chr [1:10] &quot;Introductions&quot; &quot;Diaspora&quot; &quot;West of the West&quot; &quot;Incarnation (Chief Adjuah - Idi of the Xodokan)&quot; ...
+##   ..$ : chr &quot;YÃ¨kÃ¨rmo sÃ¨w&quot;
+##   ..$ : chr &quot;Don&#39;t Call Me (feat. Shakka)&quot;
+##   ..$ : chr &quot;Had Enough (feat. Quavo &amp; Offset)&quot;
+##   ..$ : chr &quot;Hahaha&quot;
+##   ..$ : chr &quot;Sup Mate (feat. Future)&quot;
+##   ..$ : chr &quot;Swizz Beatz&quot;
+##   ..$ : chr &quot;Coming Home&quot;
+##   ..$ : chr &quot;Magical Mystery Tour - Remastered 2009&quot;
+##   ..$ : chr [1:2] &quot;For Ya&quot; &quot;Mi Palomita (Intro)&quot;
+##   ..$ : chr [1:23] &quot;foresight&quot; &quot;metal&quot; &quot;pharmacy&quot; &quot;clown nose&quot; ...
+##   ..$ : chr &quot;Nonbinary&quot;
+##   ..$ : chr &quot;Blue Jay Way - Remastered 2009&quot;
+##   ..$ : chr &quot;JU$T (feat. Pharrell Williams &amp; Zack de la Rocha)&quot;
+##   ..$ : chr [1:2] &quot;Flying - Remastered 2009&quot; &quot;Magical Mystery Tour - Remastered 2009&quot;
+##   ..$ : chr &quot;Taxman - Remastered 2009&quot;
+##   ..$ : chr [1:5] &quot;Disrespectful&quot; &quot;Mad Stalkers&quot; &quot;My Choppa Hate Niggas&quot; &quot;Rap Saved Me&quot; ...
+##   ..$ : chr [1:2] &quot;Nightmare&quot; &quot;Ric Flair Drip (&amp; Metro Boomin)&quot;
+##   ..$ : chr &quot;Exchange&quot;
+##   ..$ : chr &quot;Can&#39;t Go&quot;
+##   ..$ : chr [1:3] &quot;Glock In My Lap&quot; &quot;Runnin&quot; &quot;INTRO&quot;
+##   ..$ : chr &quot;Cranes in the Sky&quot;
+##   ..$ : chr &quot;Temptation&quot;
+##   ..$ : chr &quot;Reborn&quot;
+##   ..$ : chr &quot;Are You... Can You... Were You? (Felt)&quot;
+##   ..$ : chr &quot;Kickback&quot;
+##   ..$ : chr &quot;R.I.P. SCREW&quot;
+##   ..$ : chr &quot;Great Dane&quot;
+##   ..$ : chr [1:2] &quot;Thangs&quot; &quot;Looks&quot;
+##   ..$ : chr &quot;Hold Me Down&quot;
+##   ..$ : chr &quot;Shotgun&quot;
+##   ..$ : chr &quot;Ungodly Hour&quot;
+##   ..$ : chr &quot;Ageispolis&quot;
+##   ..$ : chr &quot;Untrust Us&quot;
+##   ..$ : chr &quot;langsette&quot;
+##   ..$ : chr &quot;Galaxy in Janaki&quot;
+##   ..$ : chr [1:2] &quot;Focus&quot; &quot;DOEP&quot;
+##   ..$ : chr &quot;Parallel Jalebi&quot;
+##   ..$ : chr &quot;Amu&quot;
+##   ..$ : chr &quot;Cityfade&quot;
+##   ..$ : chr &quot;Let&#39;s Shoot Up&quot;
+##   ..$ : chr &quot;Marijuana&quot;
+##   ..$ : chr &quot;Luminous Beings&quot;
+##   ..$ : chr &quot;Bug Thief&quot;
+##   .. [list output truncated]</code></pre>
+<p>Since <code>tidy_scrobbles</code> only contained a few variables, I thought I’d make the dataset more interesting by adding in artist genre tags, that way we can do some more interesting analysis with the health data. To add in artist genre tags, I used publicly available functions that take advantage of the last.fm API to extract user-submitted metadata. Using this method, I populated a data frame with the top 3 most popular genre tags per artist.</p>
+<pre class="r"><code># Functions to build and fetch artist tags using script from
+# Jay Blanco: https://tinyurl.com/5swb3bap
+fetch_artist_toptags &lt;- function(artist) {
+    # print(paste0(&#39;Fetching &#39;, artist))
+    api_key &lt;- &quot;934ebc5eb7fad868c21ea8c8046bc983&quot;
+    json &lt;- fromJSON(build_artist_toptags_query(artist, api_key))
+    
+    if (length(json$toptags$tag) == 0) 
+        return(NA)
+    
+    return(as.vector(json$toptags$tag[, &quot;name&quot;]))
+}
+build_artist_toptags_query &lt;- function(artist, api_key, base = &quot;http://ws.audioscrobbler.com/2.0/&quot;) {
+    base &lt;- param_set(base, &quot;method&quot;, &quot;artist.gettoptags&quot;)
+    base &lt;- param_set(base, &quot;artist&quot;, URLencode(artist))
+    base &lt;- param_set(base, &quot;api_key&quot;, api_key)
+    base &lt;- param_set(base, &quot;format&quot;, &quot;json&quot;)
+    
+    return(base)
+}
+
+# Generate vector of artist genre tags. Each object in the
+# vector is a list that contains top tags for every unique
+# artist I&#39;ve scrobbled
+artist_vec &lt;- tidy_scrobbles %&gt;% pull(artist) %&gt;% as.vector() %&gt;% 
+    unique()
+tag_vec &lt;- c()
+for (artist in artist_vec) {
+    tag_vec &lt;- append(tag_vec, list(fetch_artist_toptags(artist)))
+}
+
+# Extract top 3 genre tags for each artist
+top3_tags &lt;- matrix(nrow = 0, ncol = 3)
+for (tag_list in tag_vec) {
+    top3_tags &lt;- rbind(top3_tags, (tag_list[1:3]))
+}
+top3_tags &lt;- cbind(top3_tags, artist_vec) %&gt;% as.data.frame() %&gt;% 
+    rename(tag1 = V1, tag2 = V2, tag3 = V3, artist = artist_vec)
+
+head(top3_tags)</code></pre>
+<pre><code>##      tag1        tag2                tag3          artist
+## 1 Hip-Hop         rap underground hip-hop   Armand Hammer
+## 2 Hip-Hop Gangsta Rap                 rap   Freddie Gibbs
+## 3 Hip-Hop         rap          west coast              YG
+## 4 Hip-Hop         rap             hip hop    BROCKHAMPTON
+## 5  gospel        soul        experimental serpentwithfeet
+## 6 hip hop         rap             chicago            Saba</code></pre>
+</div>
+<div id="joining" class="section level1">
+<h1>2.Joining</h1>
+<p>I then joined <code>tidy_scrobbles</code> (with genre tags) and <code>tidy_health</code> by date.</p>
+<pre class="r"><code># Join scrobble and genre tag data with health data
+total &lt;- full_join(tidy_scrobbles, top3_tags, by = &quot;artist&quot;) %&gt;% 
+    left_join(tidy_health, by = &quot;date&quot;) %&gt;% arrange(desc(date), 
+    artist, album, song)
+
+head(total)</code></pre>
+<pre><code>## # A tibble: 6 x 10
+##   artist album date       song  tag1  tag2  tag3  distance flights_climbed steps
+##   &lt;chr&gt;  &lt;chr&gt; &lt;date&gt;     &lt;lis&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt;    &lt;dbl&gt;           &lt;dbl&gt; &lt;dbl&gt;
+## 1 Arman… Haram 2021-03-26 &lt;chr… Hip-… rap   unde…    0.670               2  1340
+## 2 black… John… 2021-03-26 &lt;chr… math… nois… expe…    0.670               2  1340
+## 3 BROCK… BUZZ… 2021-03-26 &lt;chr… Hip-… rap   hip …    0.670               2  1340
+## 4 BROCK… SATU… 2021-03-26 &lt;chr… Hip-… rap   hip …    0.670               2  1340
+## 5 Fredd… Alfr… 2021-03-26 &lt;chr… Hip-… Gang… rap      0.670               2  1340
+## 6 King … Hold… 2021-03-26 &lt;chr… Hip-… rap   trap     0.670               2  1340</code></pre>
+<pre class="r"><code>dim(tidy_scrobbles)[1]</code></pre>
+<pre><code>## [1] 25864</code></pre>
+<pre class="r"><code>dim(tidy_health)[1]</code></pre>
+<pre><code>## [1] 1931</code></pre>
+<pre class="r"><code>dim(total)[1]</code></pre>
+<pre><code>## [1] 25864</code></pre>
+<p>Since I began using last.fm on July 1, 2018, I have listened to 25,864 unique date-artist-albums. Since I started tracking my physical activity via iPhone on December 13, 2015, 1931 days of information have been collected. Given the number of repeating dates in <code>tidy_scrobbles</code>, much of the activity data from <code>tidy_health</code> is repeated in the joined dataset.</p>
+<p>Here, I chose a <em>left join</em> to avoid rows filled with <code>NA</code> for <code>artist</code>, <code>album</code>, <code>song</code> and <code>tag</code> information, since there were some dates in <code>tidy_health</code> where no scrobble data was collected (days where I didn’t listen to any music).</p>
+</div>
+<div id="wrangling" class="section level1">
+<h1>3.Wrangling</h1>
+<p>Now, lets see what things we can pull out of this big dataset:</p>
+<pre class="r"><code># Data filtering
+total %&gt;% filter(date == &quot;2021-03-26&quot;) %&gt;% select(date, artist, 
+    album)  # View artists/albums listened to on a given date</code></pre>
+<pre><code>## # A tibble: 11 x 3
+##    date       artist           album                      
+##    &lt;date&gt;     &lt;chr&gt;            &lt;chr&gt;                      
+##  1 2021-03-26 Armand Hammer    Haram                      
+##  2 2021-03-26 black midi       John L / Despair           
+##  3 2021-03-26 BROCKHAMPTON     BUZZCUT (FEAT. DANNY BROWN)
+##  4 2021-03-26 BROCKHAMPTON     SATURATION                 
+##  5 2021-03-26 Freddie Gibbs    Alfredo                    
+##  6 2021-03-26 King Combs       Holdin Me Down             
+##  7 2021-03-26 LA Priest        GENE                       
+##  8 2021-03-26 Saba             Ziplock / Rich Don&#39;t Stop  
+##  9 2021-03-26 serpentwithfeet  DEACON                     
+## 10 2021-03-26 Shelley FKA DRAM Cooking With Grease        
+## 11 2021-03-26 YG               Still Brazy (Deluxe)</code></pre>
+<pre class="r"><code>total %&gt;% filter(date == &quot;2021-03-26&quot; &amp; artist == &quot;Armand Hammer&quot;) %&gt;% 
+    pull(song) %&gt;% as_vector() %&gt;% tibble(`2021-03-26` = .)  # View songs listened to by a particular artist on a given day</code></pre>
+<pre><code>## # A tibble: 6 x 1
+##   `2021-03-26`     
+##   &lt;chr&gt;            
+## 1 God&#39;s Feet       
+## 2 Aubergine        
+## 3 Indian Summer    
+## 4 Black Sunlight   
+## 5 Roaches Don&#39;t Fly
+## 6 Sir Benni Miles</code></pre>
+<pre class="r"><code>total %&gt;% filter(artist == &quot;Miles Davis&quot; &amp; album == &quot;Bitches Brew&quot;) %&gt;% 
+    select(`Miles Davis: Bitches Brew` = date)  # Find dates when you listened to a particular artist/album</code></pre>
+<pre><code>## # A tibble: 27 x 1
+##    `Miles Davis: Bitches Brew`
+##    &lt;date&gt;                     
+##  1 2021-03-01                 
+##  2 2021-02-28                 
+##  3 2020-12-31                 
+##  4 2020-09-19                 
+##  5 2020-09-18                 
+##  6 2020-08-18                 
+##  7 2020-07-04                 
+##  8 2020-06-14                 
+##  9 2020-06-10                 
+## 10 2020-05-28                 
+## # … with 17 more rows</code></pre>
+<pre class="r"><code># Find dates a particular song was listened to (can be easily
+# extended to search for song artists, albums)
+count &lt;- 0
+date_vec &lt;- c()
+song_name &lt;- &quot;Spanish Key&quot;
+for (unique_ID_songs in total$song) {
+    count &lt;- count + 1
+    if (song_name %in% unique_ID_songs) {
+        date_vec &lt;- append(date_vec, total$date[count])
+    }
+}
+tibble(`:=`({
+    {
+        song_name
+    }
+}, date_vec))</code></pre>
+<pre><code>## # A tibble: 5 x 1
+##   `Spanish Key`
+##   &lt;date&gt;       
+## 1 2020-06-14   
+## 2 2020-04-26   
+## 3 2020-04-06   
+## 4 2019-12-24   
+## 5 2019-07-13</code></pre>
+<pre class="r"><code># Frequency of genres listened to, according to most popular
+# artist tag (tag1)
+tag_freq &lt;- total %&gt;% group_by(tag1) %&gt;% summarize(freq = n()) %&gt;% 
+    arrange(desc(freq))
+tag_freq</code></pre>
+<pre><code>## # A tibble: 132 x 2
+##    tag1          freq
+##    &lt;fct&gt;        &lt;int&gt;
+##  1 Hip-Hop       8220
+##  2 NA            7462
+##  3 trap          1038
+##  4 jazz           832
+##  5 classic rock   820
+##  6 pop            636
+##  7 Lo-Fi          618
+##  8 rnb            573
+##  9 indie          532
+## 10 folk           531
+## # … with 122 more rows</code></pre>
+<pre class="r"><code># Frequency of top 3 genre tag combos
+total %&gt;% group_by(tag1, tag2, tag3) %&gt;% summarize(freq = n()) %&gt;% 
+    arrange(desc(freq))</code></pre>
+<pre><code>## # A tibble: 634 x 4
+## # Groups:   tag1, tag2 [422]
+##    tag1         tag2         tag3              freq
+##    &lt;fct&gt;        &lt;fct&gt;        &lt;fct&gt;            &lt;int&gt;
+##  1 NA           NA           NA                7462
+##  2 Hip-Hop      rap          trap              2103
+##  3 Hip-Hop      rap          hip hop           1892
+##  4 Hip-Hop      trap         rap               1864
+##  5 trap         Hip-Hop      rap                901
+##  6 classic rock rock         british            651
+##  7 Hip-Hop      rap          seen live          500
+##  8 Hip-Hop      rap          rnb                313
+##  9 Hip-Hop      experimental experimental rap   293
+## 10 Hip-Hop      experimental glitch hop         291
+## # … with 624 more rows</code></pre>
+<pre class="r"><code># Albums listened to between the start of quarantine and
+# graduation (R.I.P.)
+total %&gt;% filter(date &gt;= as.Date(&quot;2020-03-12&quot;) &amp; date &lt;= as.Date(&quot;2020-05-16&quot;)) %&gt;% 
+    group_by(album) %&gt;% summarize(freq = n()) %&gt;% arrange(desc(freq))</code></pre>
+<pre><code>## # A tibble: 900 x 2
+##    album                                         freq
+##    &lt;chr&gt;                                        &lt;int&gt;
+##  1 Friend or Foux                                  14
+##  2 Eternal Atake (Deluxe) - LUV vs. The World 2    11
+##  3 So Much Fun                                     11
+##  4 Jeffery                                         10
+##  5 SAWAYAMA                                         9
+##  6 IGOR                                             8
+##  7 All My Heroes Are Cornballs                      7
+##  8 Bitches Brew                                     7
+##  9 Covered In Money!                                7
+## 10 Today and Tomorrow                               7
+## # … with 890 more rows</code></pre>
+<pre class="r"><code># Days when Hip-Hop and Jazz were my most listened to genres
+top_hh_dates &lt;- total %&gt;% group_by(date, tag1) %&gt;% summarize(freq = n()) %&gt;% 
+    arrange(desc(freq)) %&gt;% filter(tag1 == &quot;Hip-Hop&quot;) %&gt;% select(date)
+top_jazz_dates &lt;- total %&gt;% group_by(date, tag1) %&gt;% summarize(freq = n()) %&gt;% 
+    arrange(desc(freq)) %&gt;% filter(tag1 == &quot;jazz&quot;) %&gt;% select(date)
+
+# Using the top five days of Hip-Hop/Jazz listening, compute
+# average steps taken, distance traveled, flights of stairs
+# climbed
+hh_activity &lt;- total %&gt;% filter(date == as_vector(top_hh_dates[1:5, 
+    1])) %&gt;% summarize(mean_steps = mean(steps), mean_distance = mean(distance), 
+    mean_flights = mean(flights_climbed))
+
+jazz_activity &lt;- total %&gt;% filter(date == as_vector(top_jazz_dates[1:5, 
+    1])) %&gt;% summarize(mean_steps = mean(steps), mean_distance = mean(distance), 
+    mean_flights = mean(flights_climbed))
+
+# I am more active on days that I mostly listen to Hip-Hop
+# versus Jazz
+full_join(hh_activity, jazz_activity) %&gt;% cbind(genre = c(&quot;Hip-Hop&quot;, 
+    &quot;Jazz&quot;))</code></pre>
+<pre><code>##   mean_steps mean_distance mean_flights   genre
+## 1   5947.236      2.416442     6.666667 Hip-Hop
+## 2   5475.045      2.258689     7.522727    Jazz</code></pre>
+<pre class="r"><code># Overall activity summary (must use group_by to avoid
+# redundancy that skews the analysis)
+total %&gt;% group_by(date) %&gt;% summarize(distance = mean(distance), 
+    steps = mean(steps), flights_climbed = mean(flights_climbed)) %&gt;% 
+    summarize(max_distance = max(distance), min_distance = min(distance), 
+        mean_distance = mean(distance), sd_distance = sd(distance), 
+        max_steps = max(steps), min_steps = min(steps), mean_steps = mean(steps), 
+        sd_steps = sd(steps), mean_flights_climbed = mean(flights_climbed), 
+        sd_flights_climbed = sd(flights_climbed))</code></pre>
+<pre><code>## # A tibble: 1 x 10
+##   max_distance min_distance mean_distance sd_distance max_steps min_steps
+##          &lt;dbl&gt;        &lt;dbl&gt;         &lt;dbl&gt;       &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+## 1         11.9        0.371          3.32        1.64    27134.       913
+## # … with 4 more variables: mean_steps &lt;dbl&gt;, sd_steps &lt;dbl&gt;,
+## #   mean_flights_climbed &lt;dbl&gt;, sd_flights_climbed &lt;dbl&gt;</code></pre>
+<pre class="r"><code># Activity summary by genre
+total %&gt;% group_by(tag1) %&gt;% summarize(distance = mean(distance), 
+    steps = mean(steps), flights_climbed = mean(flights_climbed))</code></pre>
+<pre><code>## # A tibble: 132 x 4
+##    tag1             distance  steps flights_climbed
+##    &lt;fct&gt;               &lt;dbl&gt;  &lt;dbl&gt;           &lt;dbl&gt;
+##  1 60s                  2.95  7145.           12.9 
+##  2 80s                  3.33  7703.           11.7 
+##  3 acoustic             2.25  5344            10   
+##  4 afrobeat             5.68 13245.           15.2 
+##  5 All                  2.06  4623.           10   
+##  6 alternative          2.73  6446.            9.37
+##  7 alternative rock     2.43  5693             6   
+##  8 ambient              3.09  7293.           10.2 
+##  9 american             3.65  8590.           13.6 
+## 10 art pop              2.05  4731.            8.38
+## # … with 122 more rows</code></pre>
+<pre class="r"><code># Create unique_ID variable (using unite instead of mutate)
+total &lt;- total %&gt;% unite(unique_ID, date, artist, album, remove = F)
+head(total)</code></pre>
+<pre><code>## # A tibble: 6 x 11
+##   unique_ID       artist  album    date       song   tag1  tag2  tag3   distance
+##   &lt;chr&gt;           &lt;chr&gt;   &lt;chr&gt;    &lt;date&gt;     &lt;list&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt;     &lt;dbl&gt;
+## 1 2021-03-26_Arm… Armand… Haram    2021-03-26 &lt;chr … Hip-… rap   under…    0.670
+## 2 2021-03-26_bla… black … John L … 2021-03-26 &lt;chr … math… nois… exper…    0.670
+## 3 2021-03-26_BRO… BROCKH… BUZZCUT… 2021-03-26 &lt;chr … Hip-… rap   hip h…    0.670
+## 4 2021-03-26_BRO… BROCKH… SATURAT… 2021-03-26 &lt;chr … Hip-… rap   hip h…    0.670
+## 5 2021-03-26_Fre… Freddi… Alfredo  2021-03-26 &lt;chr … Hip-… Gang… rap       0.670
+## 6 2021-03-26_Kin… King C… Holdin … 2021-03-26 &lt;chr … Hip-… rap   trap      0.670
+## # … with 2 more variables: flights_climbed &lt;dbl&gt;, steps &lt;dbl&gt;</code></pre>
+<p>Overall, its clear that hip-hop is one of my most listened to genres, and that I am generally more active on days that I listen to a lot of hip-hop. This makes sense, since most songs on my exercise playlist are hip-hop/rap and tend to have a higher bpm. I also noticed a pretty large variance in the number of steps I take per day. With a standard deviation of 3791 steps, I think a lot of this variance came about with the start of quarantine and me walking around a lot less.</p>
+</div>
+<div id="visualization" class="section level1">
+<h1>4.Visualization</h1>
+<pre class="r"><code># Correlation matrix heatmap
+cormat &lt;- total %&gt;% select(&quot;distance&quot;:&quot;steps&quot;) %&gt;% cor()
+tidycor &lt;- cormat %&gt;% as.data.frame %&gt;% rownames_to_column(&quot;var1&quot;) %&gt;% 
+    pivot_longer(-1, names_to = &quot;var2&quot;, values_to = &quot;correlation&quot;)
+
+tidycor %&gt;% ggplot(aes(var1, var2, fill = correlation)) + geom_tile() + 
+    scale_fill_gradient2(low = &quot;red&quot;, mid = &quot;white&quot;, high = &quot;blue&quot;) + 
+    geom_text(aes(label = round(correlation, 2)), color = &quot;black&quot;, 
+        size = 4) + theme(axis.text.x = element_text(angle = 90, 
+    hjust = 1)) + coord_fixed()</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-7-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Scatter plot
+total %&gt;% ggplot(aes(steps, distance)) + geom_point(aes(color = flights_climbed)) + 
+    scale_color_gradient(low = &quot;blue&quot;, high = &quot;red&quot;) + geom_smooth(method = &quot;lm&quot;) + 
+    scale_x_continuous(breaks = seq(0, 30000, 2500)) + ggtitle(&quot;distance vs. steps (shaded by flights climbed)&quot;)</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-7-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>total %&gt;% ggplot(aes(steps, flights_climbed)) + geom_point(aes(color = distance)) + 
+    scale_color_gradient(low = &quot;blue&quot;, high = &quot;red&quot;) + geom_smooth(method = &quot;lm&quot;) + 
+    scale_x_continuous(breaks = seq(0, 30000, 2500)) + ggtitle(&quot;flights climbed vs. steps (shaded by distance)&quot;)</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-7-3.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Density plot
+total[1:365, ] %&gt;% ggplot(aes(steps, fill = tag1)) + geom_density(aes(group = tag1), 
+    alpha = 0.85) + geom_rug(aes(color = tag1)) + scale_x_continuous(breaks = seq(0, 
+    30000, 2500)) + theme(legend.position = &quot;none&quot;) + ggtitle(&quot;step density by genre&quot;)</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-7-4.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Bar plot
+total[1:250, ] %&gt;% ggplot(aes(x = reorder(tag1, distance), y = distance)) + 
+    geom_bar(stat = &quot;summary&quot;) + geom_errorbar(stat = &quot;summary&quot;) + 
+    geom_jitter(aes(color = steps), alpha = 0.5) + scale_color_gradient(low = &quot;blue&quot;, 
+    high = &quot;red&quot;) + scale_y_continuous(breaks = seq(0, 7, 0.5)) + 
+    theme(axis.text.x = element_text(&quot;genre&quot;, angle = 90)) + 
+    xlab(&quot;genre&quot;) + ggtitle(&quot;distance traveled by genre&quot;)</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-7-5.png" width="672" style="display: block; margin: auto;" />
+In the first scatter plot, we see a clear linear relationship between steps walked and total distance traveled per day, as one would expect. Flights climbed appears to be only weakly correlated with steps and/or distance. This is confirmed in the following scatter plot, which clearly shows a weaker positive relationship between steps and flights climbed.</p>
+<p>More interesting to look at is the bar plot, which looks at distance and steps traveled by genre (using only the 250 most recent entries, however, for visibility and neatness). Here, we are able to see which genres have been associated with greater walking distance/step counts recently. Interestingly, indie pop, punk, and singer-songwriter have the highest mean distance traveled. Soul, Hip-hop, and Jazz have the most data points, and are middle-of-the-pack, but soul has the greatest variance while jazz has pretty low variance.</p>
+<p>The density plot is mostly for fun, but it shows how certain genres are more tightly associated with a particular level of activity, while others have little correlation with activity as measured by step count.</p>
+<p>#5. Dimensionality Reduction</p>
+<pre class="r"><code>pam_dat &lt;- total[1:5000, ] %&gt;% select(&quot;distance&quot;:&quot;flights_climbed&quot;) %&gt;% 
+    na.omit()  # Chose a subset of the data since the whole dataset is so large and slow to put through the for-loop
+
+sil_width &lt;- vector()
+for (i in 2:10) {
+    kms &lt;- kmeans(pam_dat, centers = i)
+    sil &lt;- silhouette(kms$cluster, dist(pam_dat))
+    sil_width[i] &lt;- mean(sil[, 3])
+}
+
+ggplot() + geom_line(aes(x = 1:10, y = sil_width)) + scale_x_continuous(name = &quot;k&quot;, 
+    breaks = 1:10)  #k=2 has highest sil_width</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-8-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>pam1 &lt;- pam_dat %&gt;% pam(k = 2)
+library(GGally)
+total[1:5000, ] %&gt;% mutate(cluster = as.factor(pam1$clustering)) %&gt;% 
+    ggpairs(columns = c(&quot;distance&quot;, &quot;steps&quot;, &quot;flights_climbed&quot;), 
+        aes(color = cluster))</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-8-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Plot principal components
+plot(pam1, which = 1)</code></pre>
+<p><img src="../../project/project1_files/figure-html/unnamed-chunk-8-3.png" width="672" style="display: block; margin: auto;" />
+PAM clustering analysis has shown that the first two principal components explain the vast majority (~100%) of the variance between the variables. The main source of this variance comes from flights_climbed, which tends to cluster separately from distance and steps, which themselves are tightly associated with one another. The different clusters, then, represent observations with similar distance and step counts, but are distant in terms of flights climbed.</p>
+</div>
+
+            
+        <hr>         <div class="related-posts">
+                <h5>Related Posts</h5>
+                
+              </div> 
+            </div>
+          </div>
+
+   <hr>  <div class="disqus">
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+
+    (function() {
+      
+      
+      if (window.location.hostname == "localhost")
+        return;
+
+      var disqus_shortname = '';
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  <a href="http://disqus.com/" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div> 
+        </div>
+      </div>
+    </div>
+
+    
+    <footer>
+  <div id="footer">
+    <div class="container">
+      <p class="text-muted">&copy; All rights reserved. Powered by <a href="https://gohugo.io/">Hugo</a> and
+      <a href="http://www.github.com/nurlansu/hugo-sustain/">sustain</a> with ♥</p>
+    </div>
+  </div>
+</footer>
+<div class="footer"></div>
+
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="../../js/docs.min.js"></script>
+<script src="../../js/main.js"></script>
+
+<script src="../../js/ie10-viewport-bug-workaround.js"></script>
+
+
+    
+  </body>
+</html>

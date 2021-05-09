@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Jonathan Busquets" />
+    
+    <link rel="shortcut icon" type="image/x-icon" href="../../img/favicon.ico">
+    <title>Project 2: Modeling, Testing, and Predicting</title>
+    <meta name="generator" content="Hugo 0.83.1" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="../../css/main.css" />
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,400,200bold,400old" />
+    
+    <!--[if lt IE 9]>
+			<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+			<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+		<![endif]-->
+
+    
+  </head>
+
+  <body>
+    <div id="wrap">
+      
+      <nav class="navbar navbar-default">
+  <div class="container">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="../../"><i class="fa fa-home"></i></a>
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <div class="navbar-collapse collapse" id="navbar">
+      <ul class="nav navbar-nav navbar-right">
+      
+        
+        <li><a href="../../post/">BLOG</a></li>
+        
+        <li><a href="../../projects/">PROJECTS</a></li>
+        
+        <li><a href="../../resume/">RESUME</a></li>
+        
+      
+      </ul>
+    </div>
+  </div>
+</nav>
+
+      <div class="container">
+        <div class="blog-post">
+          <h3>
+            <strong><a href="../../project/project2/">Project 2: Modeling, Testing, and Predicting</a></strong>
+          </h3>
+        </div>
+ 
+<div class="blog-title">
+          <h4>
+         May 7, 2021 
+            &nbsp;&nbsp;
+            
+          </h4>
+        </div>
+
+        <div class="panel panel-default">
+          <div class="panel-body">
+            <div class="blogpost">
+              
+
+
+<div id="introduction" class="section level1">
+<h1>0.Introduction</h1>
+<p>Acute leukemias are aggressive cancers that are characterized by infiltration of the bone marrow, blood, and other tissues by proliferative, clonal, and abnormally differentiated hematopoietic cells. Acute myeloid leukemia (AML) involves the rapid proliferation of poorly differentiated cells of the myeloid lineage, while acute lymphoblastic leukemia (ALL) involves cells of the lymphoid lineage with B (B-ALL) and T (T-ALL) cell subtypes. While frontline chemotherapies are effective in inducing remission across a spectrum of AML/ALL prognoses, the enormous genetic, epigenetic, and cellular heterogeneity of the diseases lead to frequent recurrence and mortality. Currently, leukemia diagnoses rely on various morphological, clinical, and molecular signatures that are prone to uncertainty and underrepresent disease heterogeneity. Characterizing genes that are aberrantly expressed in heterogeneous leukemic samples may therefore prove essential to designing effective and targeted therapies.</p>
+<p>In this project, I will be analyzing microarray data that includes gene expression profiles from two types of acute leukemia, AML and ALL. The data contains 72 total observations for the top 40 differentially expressed genes from an oligonucleotide array containing 6817 genes. In the dataset, there are 38 cases of B-ALL, 25 cases of AML, and 9 cases of T-ALL. Variables are reported as Log2 expression (-1 to +1)</p>
+<p>Source: Sandrine Dudoit, Jane Fridlyand &amp; Terence P Speed (2002) Comparison of
+Discrimination Methods for the Classification of Tumors Using Gene Expression Data, Journal of
+the American Statistical Association, 97:457, 77-87, DOI: 10.1198/016214502753479248</p>
+<pre class="r"><code># Import dataset
+library(PPforest)
+data(&quot;leukemia&quot;)
+
+# Add variables
+leukemia &lt;- leukemia %&gt;% arrange(Type) %&gt;% mutate(Class = c(rep(&quot;ALL&quot;,47), rep(&quot;AML&quot;, 25)), Patient = seq(1,72,1)) #Broad AML/ALL distinction
+leukemia &lt;- leukemia %&gt;% group_by(Patient) %&gt;% mutate(mean.expression = mean(Gene1:Gene40)) #Mean expression across all genes
+
+low_high &lt;- leukemia %&gt;% pull(mean.expression) %&gt;% quantile(0.5)
+leukemia &lt;- leukemia %&gt;% mutate(low_high.expression = ifelse(mean.expression &gt; low_high, 1, 0)) #Categorize into high (1) or low (0) expression according to 50% quantile
+
+leukemia &lt;- subset(leukemia, select = c(43,42,1,44:45,2:41))</code></pre>
+</div>
+<div id="analysis-of-variance" class="section level1">
+<h1>1. Analysis of Variance</h1>
+<pre class="r"><code>leuk.manova &lt;- manova(cbind(Gene1, Gene2, Gene3, Gene4, Gene5)~Type,data=leukemia)
+summary(leuk.manova)</code></pre>
+<pre><code>## Df Pillai approx F num Df den Df Pr(&gt;F)
+## Type 2 1.3598 28.035 10 132 &lt; 2.2e-16 ***
+## Residuals 69
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>summary.aov(leuk.manova)</code></pre>
+<pre><code>## Response Gene1 :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Type 2 37.841 18.9204 39.371 3.912e-12 ***
+## Residuals 69 33.159 0.4806
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Response Gene2 :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Type 2 38.367 19.1837 40.563 2.252e-12 ***
+## Residuals 69 32.633 0.4729
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Response Gene3 :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Type 2 38.604 19.3019 41.111 1.752e-12 ***
+## Residuals 69 32.396 0.4695
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Response Gene4 :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Type 2 38.844 19.422 41.676 1.355e-12 ***
+## Residuals 69 32.156 0.466
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Response Gene5 :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Type 2 39.059 19.5294 42.188 1.076e-12 ***
+## Residuals 69 31.941 0.4629
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>Gene1.t &lt;- pairwise.t.test(leukemia$Gene1, leukemia$Type, p.adj=&quot;none&quot;)$p.val
+Gene2.t &lt;- pairwise.t.test(leukemia$Gene2, leukemia$Type, p.adj=&quot;none&quot;)$p.val
+Gene3.t &lt;- pairwise.t.test(leukemia$Gene3, leukemia$Type, p.adj=&quot;none&quot;)$p.val
+Gene4.t &lt;- pairwise.t.test(leukemia$Gene4, leukemia$Type, p.adj=&quot;none&quot;)$p.val
+Gene5.t &lt;- pairwise.t.test(leukemia$Gene5, leukemia$Type, p.adj=&quot;none&quot;)$p.val
+
+Gene1.t; Gene2.t; Gene3.t; Gene4.t; Gene5.t</code></pre>
+<pre><code>##              ALL-B        ALL-T
+## ALL-T 4.147296e-04           NA
+## AML   4.167726e-09 2.050788e-11</code></pre>
+<pre><code>##              ALL-B        ALL-T
+## ALL-T 3.505923e-01           NA
+## AML   5.149718e-13 4.507712e-06</code></pre>
+<pre><code>##              ALL-B       ALL-T
+## ALL-T 1.139674e-10          NA
+## AML   2.329768e-09 0.009035001</code></pre>
+<pre><code>##              ALL-B        ALL-T
+## ALL-T 2.046033e-09           NA
+## AML   2.615272e-04 1.753472e-13</code></pre>
+<pre><code>##              ALL-B      ALL-T
+## ALL-T 1.639427e-10         NA
+## AML   6.665318e-10 0.01883718</code></pre>
+<pre class="r"><code>error_prob &lt;- 1 - (0.95)^21
+error_prob</code></pre>
+<pre><code>## [1] 0.6594384</code></pre>
+<pre class="r"><code>bonferroni &lt;- 0.05/21
+bonferroni</code></pre>
+<pre><code>## [1] 0.002380952</code></pre>
+<pre class="r"><code>Gene1.t &gt; bonferroni &amp; Gene1.t &lt; 0.05</code></pre>
+<pre><code>##       ALL-B ALL-T
+## ALL-T FALSE    NA
+## AML   FALSE FALSE</code></pre>
+<pre class="r"><code>Gene2.t &gt; bonferroni &amp; Gene2.t &lt; 0.05</code></pre>
+<pre><code>##       ALL-B ALL-T
+## ALL-T FALSE    NA
+## AML   FALSE FALSE</code></pre>
+<pre class="r"><code>Gene3.t &gt; bonferroni &amp; Gene3.t &lt; 0.05</code></pre>
+<pre><code>##       ALL-B ALL-T
+## ALL-T FALSE    NA
+## AML   FALSE  TRUE</code></pre>
+<pre class="r"><code>Gene4.t &gt; bonferroni &amp; Gene4.t &lt; 0.05</code></pre>
+<pre><code>##       ALL-B ALL-T
+## ALL-T FALSE    NA
+## AML   FALSE FALSE</code></pre>
+<pre class="r"><code>Gene5.t &gt; bonferroni &amp; Gene5.t &lt; 0.05</code></pre>
+<pre><code>##       ALL-B ALL-T
+## ALL-T FALSE    NA
+## AML   FALSE  TRUE</code></pre>
+<p>Since there are 40 genes in the dataset and many comparisons to be made, I’ve chosen to select a subset of just 5 genes to perform MANOVA and the subsequent analyses.</p>
+<p>Since p &lt;&lt; 0.05, it is almost certain that for at least one of the response variables (<code>Gene(n)</code>), at least one group (<code>Type</code>) mean differs from another. To find out which genes have at least one differing group mean, multiple ANOVAs need to be run. After doing so, we find that all genes have at least one differing group mean (p &lt; 0.05). Finally, to determine which group means within a given gene differ, we can perform pairwise t-tests for all 5 ANOVAs.</p>
+<p>In this analysis, we have performed a total of 36 hypothesis tests (1 MANOVA, 5 ANOVA, 15 t-tests). This means that, without adjustment, the probability that we committed at least one type-I error is 65.9%. Adjusting the significance level using the Bonferroni correction, in order to keep the overall type-I error rate (a) at 5%, we need to adjust the individual type-I error rate (a’) to 0.00238, or 0.238%. After correcting, we find that there were two post-hoc tests that were significant before the adjustment that are no longer significant after it.</p>
+<p>In particular, the adjusted post-hoc t-tests found that there non-significant significant differences in mean expression of <code>Gene3</code> and <code>Gene5</code> between AML and ALL-T groups. All other gene-group differences appear to be significant.</p>
+<p>MANOVA operates on several assumptions/constraints: it assumes a multivariate normal distribution and that all groups have the same variance, requires more samples than variables, and is sensitive to zeroes in the data. Given the stochastic nature of biology, it is unlikely that the distribution of data is normal or that all groups have the same or similar variance. For this reason, a PERMANOVA analysis may be preferable here.</p>
+</div>
+<div id="randomization" class="section level1">
+<h1>2. Randomization</h1>
+<pre class="r"><code>set.seed(348)
+ALL &lt;- leukemia %&gt;% ungroup %&gt;% filter(Class == &quot;ALL&quot;) %&gt;% select(Gene1, Gene15) %&gt;% as.matrix
+AML &lt;- leukemia %&gt;% ungroup %&gt;% filter(Class == &quot;AML&quot;) %&gt;% select(Gene1, Gene15) %&gt;% as.matrix
+
+gene1 &lt;- data.frame(expression = c(AML[,1], ALL[,1]), class = c(rep(&quot;AML&quot;,25), rep(&quot;ALL&quot;,47)))
+gene15 &lt;- data.frame(expression = c(AML[,2], ALL[,2]), class = c(rep(&quot;AML&quot;,25), rep(&quot;ALL&quot;,47)))
+
+rand.diff_1 &lt;- c()
+rand.diff_15 &lt;- c()
+
+for (i in 1:5000) {
+  scrmbl_1 &lt;- data.frame(expression = sample(gene1$expression), class = gene1$class)
+  scrmbl_15 &lt;- data.frame(expression = sample(gene15$expression), class = gene15$class)
+
+  rand.diff_1[i] &lt;- mean(scrmbl_1[scrmbl_1$class == &#39;ALL&#39;,1]) -
+                     mean(scrmbl_1[scrmbl_1$class == &#39;AML&#39;,1])
+  rand.diff_15[i] &lt;- mean(scrmbl_15[scrmbl_15$class == &#39;ALL&#39;,1]) -
+                     mean(scrmbl_15[scrmbl_15$class == &#39;AML&#39;,1])
+}
+
+# Calculate observed mean difference
+obs.diff_1 &lt;- mean(ALL[,1]) - mean(AML[,1])
+obs.diff_15 &lt;- mean(ALL[,2]) - mean(AML[,2])
+
+# Calculate two-sided p-value
+pval_1 &lt;- mean(rand.diff_1 &gt; obs.diff_1 | rand.diff_1 &lt; -obs.diff_1)
+pval_15 &lt;- mean(rand.diff_15 &gt; -obs.diff_15 | rand.diff_15 &lt; obs.diff_15)
+
+# Plot randomized distribution
+as.data.frame(rand.diff_1) %&gt;% ggplot(aes(rand.diff_1)) +
+  geom_histogram(color=&quot;black&quot;, fill=&quot;white&quot;) +
+  geom_vline(xintercept = obs.diff_1*c(-1,1), color = &quot;red&quot;) +
+  xlab(&#39;mean difference in expression&#39;) +  xlim(-1.4, 1.4) +
+  ggtitle(&#39;Randomized Gene 1 Expression Distribution&#39;)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-3-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>as.data.frame(rand.diff_15) %&gt;% ggplot(aes(rand.diff_15)) +
+  geom_histogram(color=&quot;black&quot;, fill=&quot;white&quot;) +
+  geom_vline(xintercept = obs.diff_15*c(-1,1), color = &quot;red&quot;) +
+  xlab(&#39;mean difference in expression&#39;) +  xlim(-1.4, 1.4) +
+  ggtitle(&#39;Randomized Gene 15 Expression Distribution&#39;) </code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-3-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>result &lt;- rbind(Gene1 = c(pval_1, t.test(AML[,1], ALL[,1])$p.val) , Gene15 = c(pval_15, t.test(AML[,2], ALL[,2])$p.val))
+colnames(result) &lt;- c(&#39;p(rand)&#39;, &#39;p(t-test)&#39;)
+result</code></pre>
+<pre><code>##        p(rand)    p(t-test)
+## Gene1   0.0000 3.777465e-10
+## Gene15  0.5156 4.677347e-01</code></pre>
+<p>Using randomization tests, we can assess whether individual genes are differentially expressed across leukemia class (AML or ALL) by comparing the observed mean difference in expression to a null distribution built from randomly sampled expression data for that gene.</p>
+<p>Using this approach, I tested the null hypothesis that the true difference in mean expression is equal to 0. Alternatively, the true difference in mean expression is not equal to 0. After running the tests, I was able to reject the null hypothesis for Gene1 but not Gene15, meaning that Gene1 is differentially expressed acrossed leukemia class but not Gene15.</p>
+</div>
+<div id="linear-regression" class="section level1">
+<h1>3.Linear Regression</h1>
+<pre class="r"><code>leukemia &lt;- leukemia %&gt;% mutate(Type = as.character(Type))
+leukemia &lt;- leukemia %&gt;% ungroup %&gt;% mutate(Gene1_C = Gene1 - mean(Gene1))
+
+fit &lt;- lm(mean.expression~Gene1_C*Type, data = leukemia, )
+coef(fit)</code></pre>
+<pre><code>## (Intercept) Gene1_C TypeALL-T TypeAML Gene1_C:TypeALL-T
+## -0.05297546 0.78015221 0.69242837 -0.05603321
+-0.11359971
+## Gene1_C:TypeAML
+## -0.07807836</code></pre>
+<blockquote>
+<ul>
+<li>intercept <em>estimate = -0.05298</em>: mean/predicted <code>mean.expression</code> for ALL-B samples with average <code>Gene1</code> expression</li>
+<li><code>Gene1_C</code> <em>estimate = 0.78015</em>: ALL-B <code>mean.expression</code> increases by 0.78015 units per each unit increase in ALL-B <code>Gene1_C</code></li>
+<li><code>TypeALL-T</code> <em>estimate = 0.69243</em>: ALL-T with zero <code>Gene1</code> expression have <code>mean.expression</code> that is 0.69243 units greater than ALL-B with zero <code>Gene1</code> expression</li>
+<li><code>TypeAML</code> <em>estimate = -0.05603</em>: AML with zero <code>Gene1</code> expression have <code>mean.expression</code> that is 0.05603 units lower than ALL-B with zero <code>Gene1</code> expression</li>
+<li><code>Gene1_C:TypeALL-T</code> <em>estimate = -0.11360</em>: the slope of <code>Gene1_C</code> on <code>mean.expression</code> is 0.11360 units lower in ALL-T than in ALL-B</li>
+<li><code>Gene1_C:TypeAML</code> <em>estimate = -0.07808</em>: the slope of <code>Gene1_C</code> on <code>mean.expression</code> is 0.07808 units lower in AML than in ALL-B</li>
+</ul>
+</blockquote>
+<pre class="r"><code>#Plot
+leukemia %&gt;% select(mean.expression, Gene1_C, Type) %&gt;% na.omit %&gt;%
+  ggplot(aes(Gene1_C, mean.expression, color=Type))+
+  geom_point()+geom_smooth(method=&quot;lm&quot;) +
+  geom_vline(xintercept=mean(leukemia$Gene1_C,na.rm=T),lty=2) +
+  xlab(&#39;Gene1 Expression&#39;)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-5-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>resids &lt;- fit$residuals
+fitvals &lt;- fit$fitted.values
+
+#Variance
+summary(fit)$r.sq</code></pre>
+<pre><code>## [1] 0.9480247</code></pre>
+<pre class="r"><code>#Linearity 
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, col=&quot;red&quot;)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-5-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>#Homoscedasticity 
+leukemia %&gt;% ggplot(aes(Gene1_C, mean.expression)) + geom_point(aes(color=Type))</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-5-3.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>library(lmtest)
+bptest(fit)</code></pre>
+<pre><code>## 
+##  studentized Breusch-Pagan test
+## 
+## data:  fit
+## BP = 5.6205, df = 5, p-value = 0.3449</code></pre>
+<pre class="r"><code>#Normality
+ggplot()+geom_histogram(aes(resids), bins=20)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-5-4.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot()+geom_qq(aes(sample=resids))+geom_qq_line(aes(sample=resids, color=&quot;red&quot;)) + theme(legend.position = &#39;none&#39;)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-5-5.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>shapiro.test(resids)</code></pre>
+<pre><code>## 
+##  Shapiro-Wilk normality test
+## 
+## data:  resids
+## W = 0.96862, p-value = 0.06896</code></pre>
+<pre class="r"><code>ks.test(resids, &quot;pnorm&quot;, mean=0, sd(resids))</code></pre>
+<pre><code>## 
+##  One-sample Kolmogorov-Smirnov test
+## 
+## data:  resids
+## D = 0.14418, p-value = 0.1002
+## alternative hypothesis: two-sided</code></pre>
+<pre class="r"><code>#Robust SEs
+library(sandwich)
+coeftest(fit,vcov=vcovHC(fit))</code></pre>
+<pre><code>##
+## t test of coefficients:
+##
+## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) -0.052975 0.036244 -1.4616 0.1486
+## Gene1_C 0.780152 0.073683 10.5880 7.243e-16 ***
+## TypeALL-T 0.692428 0.106902 6.4772 1.362e-08 ***
+## TypeAML -0.056033 0.075824 -0.7390 0.4625
+## Gene1_C:TypeALL-T -0.113600 0.128144 -0.8865 0.3786
+## Gene1_C:TypeAML -0.078078 0.094464 -0.8265 0.4115
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>summary(fit)</code></pre>
+<pre><code>##
+## Call:
+## lm(formula = mean.expression ~ Gene1_C * Type, data =
+leukemia)
+##
+## Residuals:
+## Min 1Q Median 3Q Max
+## -0.46806 -0.14632 0.06834 0.12366 0.60911
+##
+## Coefficients:
+## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) -0.05298 0.03692 -1.435 0.156068
+## Gene1_C 0.78015 0.04818 16.194 &lt; 2e-16 ***
+## TypeALL-T 0.69243 0.18893 3.665 0.000495 ***
+## TypeAML -0.05603 0.07839 -0.715 0.477233
+## Gene1_C:TypeALL-T -0.11360 0.14535 -0.782 0.437272
+## Gene1_C:TypeAML -0.07808 0.07764 -1.006 0.318230
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Residual standard error: 0.2097 on 66 degrees of freedom
+## Multiple R-squared: 0.948, Adjusted R-squared: 0.9441
+## F-statistic: 240.8 on 5 and 66 DF, p-value: &lt; 2.2e-16</code></pre>
+<blockquote>
+<ul>
+<li><strong>Variance</strong>: The R-squared value informs us that the linear model explains 94.8% of the variance in the outcome.</li>
+<li><strong>Linearity</strong>: The plot of residuals vs fitted values shows us that the relationship is not truly linear, since the residuals are not randomly distributed around zero, indicating consistent over- and underfitting.</li>
+<li><strong>Homoscedasticity</strong>: The relationship is also homocedastic, since residuals do not increase in amplitude as the fitted values increase. This result is confirmed by the results of the Breusch-Pagan test.</li>
+<li><strong>Normality</strong>: The relationship is close to being normal, but is ultimately non-normal. This is confirmed graphically by the histogram of residuals and Q-Q plot, which show near normality and linearity, respectively. Hypothesis tests reaffirm this conclusion, since the Shapiro-Wilk test is nearly significant (p=0.06896) and the Kolmogorov-Smirnov test is only slightly less (p=0.1002)</li>
+<li><strong>Robust SEs</strong>: using robust SEs, there is am increase in signficance for the estimated Gene1 coefficient and decrease in the ALL-T coefficient. While both variables are still significant predictors, this result further establishes that <code>Gene1</code> is the best predictor of the <code>mean.expression</code>. The decrease in ALL-T significance indicates that it is a weaker predictor of <code>mean.expression</code> than in the original fit. Notably, there is no difference in the predicted coefficients.</li>
+</ul>
+</blockquote>
+</div>
+<div id="linear-regression---bootstrapped-ses" class="section level1">
+<h1>4. Linear Regression - Bootstrapped SEs</h1>
+<pre class="r"><code>set.seed(348)
+
+# Bootstrap observations
+coef.obs &lt;- replicate(5000, {
+  boot.obs &lt;- sample_frac(leukemia, replace = T)
+  fit.obs &lt;- lm(mean.expression~Gene1_C*Type, data=boot.obs)
+  coef(fit.obs)
+})
+coef.obs %&gt;% t() %&gt;% as.data.frame() %&gt;% summarize_all(mean)</code></pre>
+<pre><code>## (Intercept) Gene1_C TypeALL-T TypeAML Gene1_C:TypeALL-T
+Gene1_C:TypeAML
+## 1 -0.04895917 0.7837636 0.6562562 -0.06423868 NA
+-0.08374111</code></pre>
+<pre class="r"><code>coef.obs %&gt;% t() %&gt;% as.data.frame() %&gt;% summarize_all(sd)</code></pre>
+<pre><code>## (Intercept) Gene1_C TypeALL-T TypeAML Gene1_C:TypeALL-T
+Gene1_C:TypeAML
+## 1 0.03574219 0.06360561 0.2714436 0.07241702 NA
+0.08533156</code></pre>
+<pre class="r"><code>coef.obs %&gt;% t %&gt;% as.data.frame %&gt;% pivot_longer(1:3) %&gt;% group_by(name) %&gt;%
+summarize(lower=quantile(value,0.01), upper=quantile(value,0.99))</code></pre>
+<pre><code>## # A tibble: 3 x 3
+##   name         lower  upper
+##   &lt;chr&gt;        &lt;dbl&gt;  &lt;dbl&gt;
+## 1 (Intercept) -0.125 0.0473
+## 2 Gene1_C      0.642 0.928 
+## 3 TypeALL-T   -0.234 0.970</code></pre>
+<p>Compared to the original and robust SEs, bootstrapped SEs are similar to both for different reasons. For example, Gene1 SE is closer to the original fit but ALL-T is closer to the original fit with robust SEs. This implies that the p-vals for Gene1 and ALL-T are closer to the orignal model.</p>
+</div>
+<div id="logistic-regression---diagnostics-rocauc" class="section level1">
+<h1>5. Logistic Regression - Diagnostics &amp; ROC/AUC</h1>
+<pre class="r"><code>fit &lt;- glm(low_high.expression~Gene1+Type, data = leukemia, family = &quot;binomial&quot;)
+summary(fit)</code></pre>
+<pre><code>##
+## Call:
+## glm(formula = low_high.expression ~ Gene1 + Type, family
+= &quot;binomial&quot;,
+## data = leukemia)
+##
+## Deviance Residuals:
+## Min 1Q Median 3Q Max
+## -2.52468 -0.09009 -0.00250 0.22320 1.24304
+##
+## Coefficients:
+## Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept) -0.4811 0.6758 -0.712 0.47657
+## Gene1 5.8710 2.0205 2.906 0.00366 **
+## TypeALL-T 15.1491 2921.2836 0.005 0.99586
+## TypeAML -0.4946 1.1602 -0.426 0.66991
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## (Dispersion parameter for binomial family taken to be 1)
+##
+## Null deviance: 99.813 on 71 degrees of freedom
+## Residual deviance: 28.938 on 68 degrees of freedom
+## AIC: 36.938
+##
+## Number of Fisher Scoring iterations: 18</code></pre>
+<pre class="r"><code>probs &lt;- predict(fit, type = &quot;response&quot;)
+
+#Confusion matrix
+table(predict=as.numeric(probs&gt;.5),truth=leukemia$low_high.expression) %&gt;% addmargins</code></pre>
+<pre><code>##        truth
+## predict  0  1 Sum
+##     0   32  1  33
+##     1    4 35  39
+##     Sum 36 36  72</code></pre>
+<pre class="r"><code>(32+35)/72 #Accuracy</code></pre>
+<pre><code>## [1] 0.9305556</code></pre>
+<pre class="r"><code>35/36 #Sensitivity (TPR)</code></pre>
+<pre><code>## [1] 0.9722222</code></pre>
+<pre class="r"><code>32/36 #Specificity (TNR)</code></pre>
+<pre><code>## [1] 0.8888889</code></pre>
+<pre class="r"><code>35/39 #Precision (PPV)</code></pre>
+<pre><code>## [1] 0.8974359</code></pre>
+<pre class="r"><code>#Density plot
+leukemia %&gt;% mutate(logit = predict(fit, type = &quot;link&quot;)) %&gt;% mutate(low_high.expression = as.factor(low_high.expression)) %&gt;%
+  ggplot() +
+  geom_density(aes(x=logit, group = low_high.expression, color=low_high.expression, fill=low_high.expression), alpha=0.4) +
+  geom_rug(aes(logit, color=low_high.expression),alpha=.9,sides=&quot;b&quot;, show.legend = F) + 
+  theme(legend.position=c(.85,.75)) + 
+  geom_vline(xintercept=0)+xlab(&quot;logit (log-odds)&quot;) +
+  geom_text(x=-5,y=.07,label=&quot;TN = 32&quot;)+
+  geom_text(x=-2,y=.008,label=&quot;FN = 1&quot;)+
+  geom_text(x=1.75,y=.006,label=&quot;FP = 4&quot;)+
+  geom_text(x=5,y=.04,label=&quot;TP = 35&quot;)</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-7-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>#ROC
+leukemia &lt;- leukemia %&gt;% mutate(low_high.expression = as.factor(low_high.expression), probs = probs)
+
+sens&lt;-function(p,data=leukemia) mean(leukemia[leukemia$low_high.expression==1,]$probs&gt;p)
+spec&lt;-function(p,data=leukemia) mean(leukemia[leukemia$low_high.expression==0,]$probs&lt;p)
+
+sensitivity &lt;- sapply(seq(0,1,.01),sens,leukemia)
+specificity &lt;- sapply(seq(0,1,.01),spec,leukemia)
+
+ROC1 &lt;- data.frame(sensitivity,specificity,cutoff=seq(0,1,.01))
+
+ROC1$TPR &lt;- sensitivity
+ROC1$FPR &lt;- 1-specificity
+
+ROC1%&gt;%ggplot(aes(FPR,TPR))+geom_path(size=1.5)+geom_segment(aes(x=0,y=0,xend=1,yend=1),lty=2)+
+  scale_x_continuous(limits = c(0,1))</code></pre>
+<p><img src="../../project/project2_files/figure-html/unnamed-chunk-7-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>#AUC
+ROC1&lt;-ROC1[order(-ROC1$cutoff),] #order dataset from least to greatest
+
+widths&lt;-diff(ROC1$FPR) #horizontal distances
+heights&lt;-vector() 
+for(i in 1:100) heights[i]&lt;-ROC1$TPR[i]+ROC1$TPR[i+1]
+
+AUC&lt;-sum(heights*widths/2)
+AUC%&gt;%round(5)</code></pre>
+<pre><code>## [1] 0.97145</code></pre>
+<blockquote>
+<ul>
+<li><strong>Gene1</strong>|exp(5.871) = 354.62: controlling for <code>Type</code>, for each unit increase in <code>Gene1</code> expression, the odds of high mean expression increases by a factor of 354.62, or 254.62%</li>
+<li><strong>TypeALL-T</strong>|exp(15.149) = 3794260: the odds of high mean expression for ALL-T are 3794260 times that of ALL-B (this is extremely unlikely)</li>
+<li><strong>TypeAML</strong>|exp(-0.495) = 0.610: the odds of high mean.expression for AML are 0.610 times that of ALL-B</li>
+<li><strong>Accuracy, TPR, TNR, and PPV</strong>: since <code>Gene1</code> is the best predictor of <code>mean.expression</code>, the logisitic fit is good at making predictions and is pretty high in all diagnostic parameters</li>
+<li><strong>AUC</strong> = 0.97145: There is a 97% chance that a randomly selected leukemia sample with high mean expression has a higher predicted probability than a randomly selected leukemia sample with low mean expression</li>
+</ul>
+</blockquote>
+</div>
+<div id="logistic-regression---cross-validation-lasso" class="section level1">
+<h1>5. Logistic Regression - Cross-validation &amp; LASSO</h1>
+<pre class="r"><code>library(knitr)
+class_diag&lt;-function(probs,truth){
+  
+  if(is.numeric(truth)==FALSE &amp; is.logical(truth)==FALSE) truth&lt;-as.numeric(truth)-1
+  
+  tab&lt;-table(factor(probs&gt;.5,levels=c(&quot;FALSE&quot;,&quot;TRUE&quot;)),truth)
+  prediction&lt;-ifelse(probs&gt;.5,1,0)
+  acc=mean(truth==prediction)
+  sens=mean(prediction[truth==1]==1)
+  spec=mean(prediction[truth==0]==0)
+  ppv=mean(truth[prediction==1]==1)
+  f1=2*(sens*ppv)/(sens+ppv)
+  
+  #CALCULATE EXACT AUC
+  ord&lt;-order(probs, decreasing=TRUE)
+  probs &lt;- probs[ord]; truth &lt;- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup&lt;-c(probs[-1]&gt;=probs[-length(probs)], FALSE)
+  TPR&lt;-c(0,TPR[!dup],1); FPR&lt;-c(0,FPR[!dup],1)
+  
+  n &lt;- length(TPR)
+  auc&lt;- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,auc)
+}
+
+leukemia &lt;- leukemia %&gt;% select(-Patient, -mean.expression, -Gene1_C, -probs) #remove mean.expression since it was used to calculate low_high.expression, also Gene1_C and probs
+fit &lt;- glm(low_high.expression~., data = leukemia, family = &quot;binomial&quot; )
+probs &lt;- predict(fit, type = &quot;response&quot;) #in-sample
+
+class_diag(probs, leukemia$low_high.expression)</code></pre>
+<pre><code>##   acc sens spec ppv auc
+## 1   1    1    1   1   1</code></pre>
+<pre class="r"><code>table(predict=as.numeric(probs&gt;.5),truth=leukemia$low_high.expression) %&gt;% addmargins</code></pre>
+<pre><code>##        truth
+## predict  0  1 Sum
+##     0   36  0  36
+##     1    0 36  36
+##     Sum 36 36  72</code></pre>
+<pre class="r"><code># 10-fold out-of-sample CV
+set.seed(348)
+k=10
+
+data &lt;- leukemia[sample(nrow(leukemia)),] #put dataset in random order
+folds &lt;- cut(seq(1:nrow(leukemia)),breaks=k,labels=F) #create folds
+
+diags &lt;- NULL
+for(i in 1:k){          # FOR EACH OF 10 FOLDS
+  train &lt;- data[folds!=i,] # CREATE TRAINING SET
+  test &lt;- data[folds==i,]  # CREATE TESTING SET
+  truth&lt;-test$low_high.expression
+  
+  fit.10 &lt;- glm(low_high.expression~., data=train, family=&quot;binomial&quot;)
+  probs &lt;- predict(fit.10, newdata = test, type=&quot;response&quot;)
+  
+  diags &lt;- rbind(diags,class_diag(probs,truth)) #CV DIAGNOSTICS FOR EACH FOLD
+}
+
+summarize_all(diags,mean) #AVERAGE THE DIAGNOSTICS ACROSS THE 10 FOLDS</code></pre>
+<pre><code>##         acc      sens      spec       ppv    auc
+## 1 0.6142857 0.6433333 0.5216667 0.6266667 0.6125</code></pre>
+<pre class="r"><code>#LASSO
+library(glmnet)
+set.seed(348)
+
+model &lt;- model.matrix(fit)
+cv.lasso &lt;- cv.glmnet(x = model[,-1], y = as.matrix(leukemia$low_high.expression), family = &quot;binomial&quot;)
+lasso &lt;- glmnet(x = model[,-1], y = as.matrix(leukemia$low_high.expression), family = &quot;binomial&quot;, lambda=cv.lasso$lambda.1se)
+coef(lasso)</code></pre>
+<pre><code>## 44 x 1 sparse Matrix of class &quot;dgCMatrix&quot;
+##                       s0
+## (Intercept)  0.030278682
+## ClassAML    -0.220283797
+## TypeALL-T    .          
+## TypeAML      .          
+## Gene1        1.776391059
+## Gene2       -0.009001343
+## Gene3        .          
+## Gene4        0.131454228
+## Gene5        .          
+## Gene6        .          
+## Gene7        .          
+## Gene8        .          
+## Gene9        .          
+## Gene10       .          
+## Gene11       .          
+## Gene12       .          
+## Gene13       .          
+## Gene14       .          
+## Gene15       .          
+## Gene16       .          
+## Gene17       .          
+## Gene18       .          
+## Gene19       .          
+## Gene20       .          
+## Gene21       .          
+## Gene22       .          
+## Gene23       .          
+## Gene24       .          
+## Gene25       .          
+## Gene26       .          
+## Gene27       .          
+## Gene28       .          
+## Gene29       .          
+## Gene30       .          
+## Gene31       .          
+## Gene32       .          
+## Gene33       .          
+## Gene34       .          
+## Gene35       .          
+## Gene36       .          
+## Gene37       .          
+## Gene38       .          
+## Gene39       .          
+## Gene40       .</code></pre>
+<pre class="r"><code>probs &lt;- predict(lasso, newx = model[,-1], type = &quot;response&quot;)
+class_diag(probs, leukemia$low_high.expression)</code></pre>
+<pre><code>##         acc      sens      spec       ppv       auc
+## 1 0.9305556 0.9722222 0.8888889 0.8974359 0.9691358</code></pre>
+<pre class="r"><code>table(predict=as.numeric(probs&gt;.5),truth=leukemia$low_high.expression) %&gt;% addmargins</code></pre>
+<pre><code>##        truth
+## predict  0  1 Sum
+##     0   32  1  33
+##     1    4 35  39
+##     Sum 36 36  72</code></pre>
+<pre class="r"><code>#10-fold CV using LASSO variables
+set.seed(348)
+k=10
+leukemia &lt;-leukemia %&gt;% mutate(AML=ifelse(leukemia$Class==&quot;AML&quot;,1,0))
+
+data &lt;- leukemia[sample(nrow(leukemia)),] #put dataset in random order
+folds &lt;- cut(seq(1:nrow(leukemia)),breaks=k,labels=F) #create folds
+
+diags &lt;- NULL
+for(i in 1:k){          
+  train &lt;- data[folds!=i,] 
+  test &lt;- data[folds==i,]  
+  truth&lt;-test$low_high.expression
+  
+  fit.10 &lt;- glm(low_high.expression~AML+Gene1+Gene2+Gene4, data=train, family=&quot;binomial&quot;)
+  probs &lt;- predict(fit.10, newdata = test, type=&quot;response&quot;)
+  
+  diags &lt;- rbind(diags,class_diag(probs,truth)) 
+}
+
+summarize_all(diags,mean)</code></pre>
+<pre><code>##         acc      sens      spec       ppv       auc
+## 1 0.9053571 0.9266667 0.8833333 0.9133333 0.9666667</code></pre>
+<blockquote>
+<ul>
+<li><strong>In-sample classification diagnostics</strong>: Accuracy, TPR, TNR, PPV, and AUC are all 1 because the model perfectly predicts mean expression level. This is likely due to the overfitting that goes along with using every single predictor variable (there are 40+ in the dataset) and only predicting within the same sample.</li>
+<li><strong>10-fold out-of-sample CV</strong>: significant decreases in classification diagnostics occur, probably because many of the variables included in the model are poor predictors of mean expression. Thus, when the model is applied out-of-sample, it is not great at making low/high expression predictions. AUC is reduced down to 0.6125, which confirms that a model that includes every predictor variable does not generalize well to new data.</li>
+<li><strong>LASSO</strong>: the LASSO method tells us that AML class, Gene1, Gene2, and Gene4 are the strongest predictors of mean expression.</li>
+<li><strong>10-fold CV using LASSO-selected predictors</strong>: using the variables selected by LASSO, the model is able to correctly predict mean expression about 97% of the time on new data. This is quite impressive compared to when the full model was used to classify new data, and shows the importance of just a few variables in determining the predictive power of a model. The AUC is only slightly lower than in-sample LASSO, further supporting its robustness.</li>
+</ul>
+</blockquote>
+</div>
+
+            
+        <hr>         <div class="related-posts">
+                <h5>Related Posts</h5>
+                
+              </div> 
+            </div>
+          </div>
+
+   <hr>  <div class="disqus">
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+
+    (function() {
+      
+      
+      if (window.location.hostname == "localhost")
+        return;
+
+      var disqus_shortname = '';
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  <a href="http://disqus.com/" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div> 
+        </div>
+      </div>
+    </div>
+
+    
+    <footer>
+  <div id="footer">
+    <div class="container">
+      <p class="text-muted">&copy; All rights reserved. Powered by <a href="https://gohugo.io/">Hugo</a> and
+      <a href="http://www.github.com/nurlansu/hugo-sustain/">sustain</a> with ♥</p>
+    </div>
+  </div>
+</footer>
+<div class="footer"></div>
+
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="../../js/docs.min.js"></script>
+<script src="../../js/main.js"></script>
+
+<script src="../../js/ie10-viewport-bug-workaround.js"></script>
+
+
+    
+  </body>
+</html>

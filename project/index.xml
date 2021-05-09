@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Projects on Jonathan Busquets</title>
+    <link>/project/</link>
+    <description>Recent content in Projects on Jonathan Busquets</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-US</language>
+    <lastBuildDate>Fri, 07 May 2021 00:00:00 +0000</lastBuildDate><atom:link href="/project/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Project 2: Modeling, Testing, and Predicting</title>
+      <link>/project/project2/</link>
+      <pubDate>Fri, 07 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>/project/project2/</guid>
+      <description>0.Introduction Acute leukemias are aggressive cancers that are characterized by infiltration of the bone marrow, blood, and other tissues by proliferative, clonal, and abnormally differentiated hematopoietic cells. Acute myeloid leukemia (AML) involves the rapid proliferation of poorly differentiated cells of the myeloid lineage, while acute lymphoblastic leukemia (ALL) involves cells of the lymphoid lineage with B (B-ALL) and T (T-ALL) cell subtypes. While frontline chemotherapies are effective in inducing remission across a spectrum of AML/ALL prognoses, the enormous genetic, epigenetic, and cellular heterogeneity of the diseases lead to frequent recurrence and mortality.</description>
+    </item>
+    
+    <item>
+      <title>Project 1: Exploratory Data Analysis</title>
+      <link>/project/project1/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>/project/project1/</guid>
+      <description>0.Introduction I have chosen two datasets, one which contains scrobble (music listening) data from last.fm, and another that contains activity data from the Apple health app. The scrobble data includes artist, album, and song information for music listened to on a given date, which I downloaded for free from this website (https://benjaminbenben.com/lastfm-to-csv/). The health data contains distance traveled (in miles), steps taken, and flights of stairs climbed per day. I chose these two datasets because I thought it’d be interesting to look at trends between activity and my listening habits.</description>
+    </item>
+    
+  </channel>
+</rss>

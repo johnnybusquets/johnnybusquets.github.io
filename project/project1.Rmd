@@ -1,0 +1,256 @@
+---
+title: 'Project 1: Exploratory Data Analysis'
+author: "Jonathan Busquets // jb77636"
+date: '04/04/2021'
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document:
+    toc: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+# 0.Introduction
+
+I have chosen two datasets, one which contains scrobble (music listening) data from last.fm, and another that contains activity data from the Apple health app. The scrobble data includes artist, album, and song information for music listened to on a given date, which I downloaded for free from this website (https://benjaminbenben.com/lastfm-to-csv/). The health data contains distance traveled (in miles), steps taken, and flights of stairs climbed per day. I chose these two datasets because I thought it'd be interesting to look at trends between activity and my listening habits. One question that I felt confident in answering was whether I listen to higher energy music when I'm more active, and wanted to see if the data really supported my assumptions. 
+
+```{r}
+# Load the appropriate packages
+library(readxl)
+library(zoo)
+library(urltools)
+library(anytime)
+library(jsonlite)
+library(dplyr)
+library(tidyverse)
+library(cluster)
+
+```
+
+```{r}
+api_key <-'934ebc5eb7fad868c21ea8c8046bc983' # Will need this later!
+
+# Import lastfm scrobble data, apple health data 
+raw_scrobbles <- read_excel("~/Johnny/Jbiscuits_scrobbles.xlsx") %>% mutate(date=as.Date(anytime(date))) %>% arrange(desc(date)) 
+head(raw_scrobbles)
+
+tidy_health <- read_excel("~/Johnny/Health Data.xlsx") %>% mutate(date=as.Date(anytime(date)))
+head(tidy_health)
+
+```
+
+# 1.Tidying
+
+While both data sets are technically tidy (one row per observation, one column per variable), `raw_scrobbles` is quite long and unwieldy. This is because each observation corresponds to a unique date-artist-album-song, which, as someone who listens to music mostly in album format, leads to a lot of date-artist-album repetition. An easy way to fix this is by using pivot_longer() to split the information from `song` into two columns and then collapse them into a list according to date-artist-album using pivot_wider().
+
+```{r}
+long_scrobbles <- raw_scrobbles %>% pivot_longer(3, names_to='category', values_to='title')
+head(long_scrobbles)
+
+tidy_scrobbles <- long_scrobbles %>% pivot_wider(names_from='category', values_from='title')
+str(tidy_scrobbles) # View of the new data structure with songs in nested lists
+
+```
+
+Since `tidy_scrobbles` only contained a few variables, I thought I'd make the dataset more interesting by adding in artist genre tags, that way we can do some more interesting analysis with the health data. To add in artist genre tags, I used publicly available functions that take advantage of the last.fm API to extract user-submitted metadata. Using this method, I populated a data frame with the top 3 most popular genre tags per artist.
+
+```{r}
+# Functions to build and fetch artist tags using script from Jay Blanco: https://tinyurl.com/5swb3bap
+fetch_artist_toptags <- function(artist) {
+  #print(paste0("Fetching ", artist))
+  api_key <- '934ebc5eb7fad868c21ea8c8046bc983'
+  json <- fromJSON(build_artist_toptags_query(artist,api_key))
+  
+  if (length(json$toptags$tag) == 0) return(NA)
+  
+  return(as.vector(json$toptags$tag[,"name"]))
+}
+build_artist_toptags_query <- function(artist, api_key, base = "http://ws.audioscrobbler.com/2.0/") {
+  base <- param_set(base, "method", "artist.gettoptags")
+  base <- param_set(base, "artist", URLencode(artist))
+  base <- param_set(base, "api_key", api_key)
+  base <- param_set(base, "format", "json")
+  
+  return(base)
+}
+
+# Generate vector of artist genre tags. Each object in the vector is a list that contains top tags for every unique artist I've scrobbled
+artist_vec <- tidy_scrobbles %>% pull(artist) %>% as.vector() %>% unique()
+tag_vec <- c()
+for (artist in artist_vec){
+  tag_vec <- append(tag_vec, list(fetch_artist_toptags(artist)))
+}
+
+# Extract top 3 genre tags for each artist
+top3_tags <- matrix(nrow=0,ncol=3)
+for (tag_list in tag_vec){
+  top3_tags <- rbind(top3_tags,(tag_list[1:3]))
+}
+top3_tags <- cbind(top3_tags,artist_vec) %>% as.data.frame() %>% rename(tag1=V1, tag2=V2, tag3=V3, artist=artist_vec)
+
+head(top3_tags)
+```
+
+# 2.Joining
+I then joined `tidy_scrobbles` (with genre tags) and `tidy_health` by date. 
+
+```{r}
+# Join scrobble and genre tag data with health data
+total <- full_join(tidy_scrobbles,top3_tags,by="artist") %>%
+  left_join(tidy_health, by="date") %>% 
+  arrange(desc(date), artist, album, song)
+
+head(total)
+dim(tidy_scrobbles)[1]
+dim(tidy_health)[1]
+dim(total)[1]
+```
+Since I began using last.fm on July 1, 2018, I have listened to 25,864 unique date-artist-albums. Since I started tracking my physical activity via iPhone on December 13, 2015, 1931 days of information have been collected. Given the number of repeating dates in `tidy_scrobbles`, much of the activity data from `tidy_health` is repeated in the joined dataset.
+
+Here, I chose a *left join* to avoid rows filled with `NA` for `artist`, `album`, `song` and `tag` information, since there were some dates in `tidy_health` where no scrobble data was collected (days where I didn't listen to any music).  
+
+# 3.Wrangling
+
+Now, lets see what things we can pull out of this big dataset:
+```{r}
+# Data filtering
+total %>% filter(date=='2021-03-26') %>% select(date, artist, album) # View artists/albums listened to on a given date
+total %>% filter(date=='2021-03-26' & artist=='Armand Hammer') %>% pull(song) %>% as_vector() %>% tibble('2021-03-26'=.) # View songs listened to by a particular artist on a given day
+total %>% filter(artist=='Miles Davis' & album=='Bitches Brew') %>% select('Miles Davis: Bitches Brew'=date) # Find dates when you listened to a particular artist/album
+
+# Find dates a particular song was listened to (can be easily extended to search for song artists, albums) 
+count<-0
+date_vec <- c()
+song_name <- 'Spanish Key'
+for (unique_ID_songs in total$song){
+  count <- count + 1
+  if (song_name %in% unique_ID_songs) {
+    date_vec <- append(date_vec, total$date[count])
+  }
+}
+tibble({{song_name}}:=date_vec)
+
+# Frequency of genres listened to, according to most popular artist tag (tag1)
+tag_freq <- total %>% group_by(tag1) %>% summarize(freq=n()) %>% arrange(desc(freq))
+tag_freq
+
+# Frequency of top 3 genre tag combos
+total %>% group_by(tag1, tag2, tag3) %>% summarize(freq=n()) %>% arrange(desc(freq))
+
+# Albums listened to between the start of quarantine and graduation (R.I.P.)
+total %>% filter(date >= as.Date('2020-03-12') & date <= as.Date('2020-05-16')) %>% group_by(album) %>% summarize(freq=n()) %>% arrange(desc(freq)) 
+
+# Days when Hip-Hop and Jazz were my most listened to genres
+top_hh_dates <- total %>% group_by(date,tag1) %>% summarize(freq=n()) %>% arrange(desc(freq)) %>% filter(tag1=='Hip-Hop') %>% select(date)
+top_jazz_dates <- total %>% group_by(date,tag1) %>% summarize(freq=n()) %>% arrange(desc(freq)) %>% filter(tag1=='jazz') %>% select(date)
+
+# Using the top five days of Hip-Hop/Jazz listening, compute average steps taken, distance traveled, flights of stairs climbed
+hh_activity <-total %>%
+  filter(date==as_vector(top_hh_dates[1:5,1])) %>%
+  summarize('mean_steps' = mean(steps), 'mean_distance' = mean(distance), 'mean_flights' = mean(flights_climbed))
+
+jazz_activity <- total %>%
+  filter(date==as_vector(top_jazz_dates[1:5,1])) %>%
+  summarize('mean_steps'=mean(steps), 'mean_distance' = mean(distance), 'mean_flights' = mean(flights_climbed))
+
+# I am more active on days that I mostly listen to Hip-Hop versus Jazz
+full_join(hh_activity, jazz_activity) %>% cbind('genre'=c("Hip-Hop","Jazz")) 
+
+# Overall activity summary (must use group_by to avoid redundancy that skews the analysis)
+total %>% group_by(date) %>%
+  summarize(distance=mean(distance), steps=mean(steps), flights_climbed=mean(flights_climbed)) %>%
+  summarize(max_distance=max(distance), min_distance=min(distance), mean_distance=mean(distance), sd_distance=sd(distance), max_steps=max(steps), min_steps=min(steps), mean_steps=mean(steps), sd_steps=sd(steps), mean_flights_climbed=mean(flights_climbed), sd_flights_climbed=sd(flights_climbed))
+
+# Activity summary by genre
+total %>% group_by(tag1) %>%
+  summarize(distance=mean(distance), steps=mean(steps), flights_climbed=mean(flights_climbed))
+
+# Create unique_ID variable (using unite instead of mutate)
+total <- total %>% unite(unique_ID, date, artist, album, remove=F)
+head(total)
+```
+Overall, its clear that hip-hop is one of my most listened to genres, and that I am generally more active on days that I listen to a lot of hip-hop. This makes sense, since most songs on my exercise playlist are hip-hop/rap and tend to have a higher bpm. I also noticed a pretty large variance in the number of steps I take per day. With a standard deviation of 3791 steps, I think a lot of this variance came about with the start of quarantine and me walking around a lot less. 
+
+# 4.Visualization
+
+```{r}
+# Correlation matrix heatmap
+cormat <- total %>% select('distance':'steps') %>% cor()
+tidycor <- cormat %>% as.data.frame %>% rownames_to_column("var1") %>%
+pivot_longer(-1,names_to="var2",values_to="correlation")
+
+tidycor %>% ggplot(aes(var1,var2,fill=correlation))+
+  geom_tile()+
+  scale_fill_gradient2(low="red",mid="white",high="blue")+
+  geom_text(aes(label=round(correlation,2)),color = "black", size = 4)+
+  theme(axis.text.x = element_text(angle = 90, hjust=1))+ 
+  coord_fixed()
+
+# Scatter plot
+total %>% ggplot(aes(steps, distance)) +
+  geom_point(aes(color=flights_climbed)) +
+  scale_color_gradient(low="blue", high="red") +
+  geom_smooth(method="lm") +
+  scale_x_continuous(breaks=seq(0,30000,2500)) +
+  ggtitle('distance vs. steps (shaded by flights climbed)') 
+
+total %>% ggplot(aes(steps, flights_climbed)) +
+  geom_point(aes(color=distance)) + 
+  scale_color_gradient(low="blue", high="red") +
+  geom_smooth(method="lm") + 
+  scale_x_continuous(breaks=seq(0,30000,2500)) + 
+  ggtitle('flights climbed vs. steps (shaded by distance)') 
+
+# Density plot
+total[1:365,] %>% ggplot(aes(steps, fill=tag1)) +
+  geom_density(aes(group=tag1),alpha=0.85) +
+  geom_rug(aes(color=tag1)) +
+  scale_x_continuous(breaks=seq(0,30000,2500)) +
+  theme(legend.position = 'none') +
+  ggtitle('step density by genre')
+
+# Bar plot
+total[1:250,] %>% ggplot(aes(x=reorder(tag1,distance),y=distance)) +
+  geom_bar(stat='summary') +
+  geom_errorbar(stat='summary') +
+  geom_jitter(aes(color=steps), alpha=.5) +
+  scale_color_gradient(low="blue", high="red") + scale_y_continuous(breaks=seq(0,7,0.5)) + 
+  theme(axis.text.x = element_text('genre', angle = 90)) +
+  xlab('genre') + ggtitle('distance traveled by genre')
+```
+In the first scatter plot, we see a clear linear relationship between steps walked and total distance traveled per day, as one would expect. Flights climbed appears to be only weakly correlated with steps and/or distance. This is confirmed in the following scatter plot, which clearly shows a weaker positive relationship between steps and flights climbed. 
+
+More interesting to look at is the bar plot, which looks at distance and steps traveled by genre (using only the 250 most recent entries, however, for visibility and neatness). Here, we are able to see which genres have been associated with greater walking distance/step counts recently. Interestingly, indie pop, punk, and singer-songwriter have the highest mean distance traveled. Soul, Hip-hop, and Jazz have the most data points, and are middle-of-the-pack, but soul has the greatest variance while jazz has pretty low variance.
+
+The density plot is mostly for fun, but it shows how certain genres are more tightly associated with a particular level of activity, while others have little correlation with activity as measured by step count.
+
+#5. Dimensionality Reduction
+
+```{r}
+pam_dat <- total[1:5000,] %>% select('distance':'flights_climbed') %>% na.omit() # Chose a subset of the data since the whole dataset is so large and slow to put through the for-loop
+
+sil_width<-vector() 
+for(i in 2:10){
+  kms <- kmeans(pam_dat,centers=i) 
+  sil <- silhouette(kms$cluster,dist(pam_dat)) 
+  sil_width[i]<-mean(sil[,3]) 
+} 
+
+ggplot()+geom_line(aes(x=1:10,y=sil_width))+scale_x_continuous(name="k",breaks=1:10) #k=2 has highest sil_width
+
+pam1 <- pam_dat %>% pam(k=2)
+library(GGally)
+total[1:5000,] %>% mutate(cluster=as.factor(pam1$clustering)) %>% 
+  ggpairs(columns = c("distance","steps","flights_climbed"), aes(color=cluster))
+
+# Plot principal components
+plot(pam1, which=1)
+```
+PAM clustering analysis has shown that the first two principal components explain the vast majority (~100%) of the variance between the variables. The main source of this variance comes from flights_climbed, which tends to cluster separately from distance and steps, which themselves are tightly associated with one another. The different clusters, then, represent observations with similar distance and step counts, but are distant in terms of flights climbed. 
