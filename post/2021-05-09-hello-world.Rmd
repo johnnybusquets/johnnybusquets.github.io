@@ -1,14 +1,46 @@
 ---
-title: Hello World!
+title: ¡Dalé! - Finding Power Through R, Python, and Pitbull
 author: ''
 date: '2021-05-09'
-slug: hello-world
+slug: 
 categories: []
 tags: []
 description: ' '
 ---
-Check out what I've been working on!
+There comes a time in everyone's life when they listen to *Timber* by Pitbull (featuring Ke$ha) for the very first time. It's a perplexing masterpiece of a song -- an intoxicating mix of country, electronic dance, and hip-hop-- that gets you moving in ways you wouldn't think possible. 
 
-[Link to project 1](/project/project1/)
+As a young Cuban boy living in Florida at the time of the song's release, I can tell you that there was a lot riding on this moment for me. You see, there isn't much in the way of Cuban representation in American media: we have Ricky Ricardo on *I Love Lucy*, Tony Montana in *Scarface*, the occasional Castro impression on *Saturday Night Live*, and... well... I guess that's it. Does Cuba Gooding Jr. Count? 
 
-[Link to google](https://www.google.com)
+Through these portrayals, the American public was terribly misinformed about the Cuban people, our culture, and our values. No, we are not all drug kingpins with deeply troubling family issues, and no, we do not all lead Socialist revolutions that are later undermined by crippling U.S. embargo. Such imagery in the pop culture sphere was neither accurate nor flattering, which is why when Armando Christian Pérez (a.k.a Pitbull or Mr. Worldwide or Mr. 305 or ...) burst onto the scene in the early 2010s, everything changed. 
+
+For the first time in my life, I was proud of my Cuban heritage. I put down the Eminem, picked up my copy of *Global Warming: Meltdown*, and loudly proclaimed, in the footsteps of my idol, my mentor, Pitbull: 
+
+# "*The bigger they are, the harder they fall, this biggity boy's a diggity dog*"
+
+Deeply moved by these words, I applied college some three years later and got accepted on a full ride. Thanks to him (Pitbull), I now have the educational attainment to be writing this very blog post in the software language R. 
+
+#### What a journey it has been!
+
+All jokes aside, I have learned many valuable skills throughout this course. None may be as valuable, however, as printing Pitbull lyrics in both R *and* Python.
+
+Using Reticulate, we can assign a string to a variable in R...
+
+```{r}
+library(reticulate)
+mr305 <- "Look up in the sky, its a bird, its a plane"
+```
+
+Assign a *different* string to a *different* variable in Python...
+```{python}
+mrworldwide = "Nah, its just me, ain't a damn thing changed"
+```
+
+And print *both* strings in Python!!!
+```{Python}
+print(r.mr305, mrworldwide)
+```
+
+Now, isn't that something?
+
+## **Me when I execute code in two programming languages simultaneously:**
+![](/post/2021-05-09-hello-world_files/mr worldwide.jpg)
