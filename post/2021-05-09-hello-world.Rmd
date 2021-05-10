@@ -19,7 +19,7 @@ For the first time in my life, I was proud of my Cuban heritage. I put down the 
 
 Deeply moved by these words, I applied college some three years later and got accepted on a full ride. Thanks to him (Pitbull), I now have the educational attainment to be writing this very blog post in the software language R. 
 
-#### What a journey it has been!
+#### **What a journey it has been!**
 
 All jokes aside, I have learned many valuable skills throughout this course. None may be as valuable, however, as printing Pitbull lyrics in both R *and* Python.
 
@@ -36,7 +36,7 @@ mrworldwide = "Nah, its just me, ain't a damn thing changed"
 ```
 
 And print *both* strings in Python!!!
-```{Python}
+```{python}
 print(r.mr305, mrworldwide)
 ```
 
